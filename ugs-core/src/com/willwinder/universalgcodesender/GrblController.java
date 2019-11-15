@@ -1,5 +1,5 @@
 /*
-    Copyright 2013-2018 Will Winder
+    Copyright 2013-2019 Will Winder
 
     This file is part of Universal Gcode Sender (UGS).
 
@@ -90,7 +90,7 @@ public class GrblController extends AbstractController {
 
         // Add our controller settings manager
         this.firmwareSettings = new GrblFirmwareSettings(this);
-        this.comm.setListenAll(firmwareSettings);
+        this.comm.addListener(firmwareSettings);
     }
     
     public GrblController() {
@@ -544,7 +544,7 @@ public class GrblController extends AbstractController {
         if (this.isCommOpen() && this.capabilities.hasCapability(GrblCapabilitiesConstants.REAL_TIME)) {
             this.comm.sendByteImmediately(GrblUtils.GRBL_RESET_COMMAND);
             //Does GRBL need more time to handle the reset?
-            this.comm.softReset();
+            this.comm.cancelSend();
         }
     }
 
@@ -564,7 +564,7 @@ public class GrblController extends AbstractController {
     @Override
     public void jogMachineTo(PartialPosition position, double feedRate) throws Exception {
         if (capabilities.hasCapability(GrblCapabilitiesConstants.HARDWARE_JOGGING)) {
-            String commandString = GcodeUtils.generateMoveToCommand(position, feedRate);
+            String commandString = GcodeUtils.generateMoveToCommand("G90", position, feedRate);
             GcodeCommand command = createCommand("$J=" + commandString);
             sendCommandImmediately(command);
         } else {

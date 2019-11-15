@@ -513,7 +513,7 @@ public class GUIBackend implements BackendAPI, ControllerListener, SettingChange
     @Override
     public long getNumRows() {
         logger.log(Level.FINEST, "Getting number of rows.");
-        return this.controller.rowsInSend();
+        return controller == null ? 0 : this.controller.rowsInSend();
     }
     
     @Override
@@ -541,13 +541,14 @@ public class GUIBackend implements BackendAPI, ControllerListener, SettingChange
     @Override
     public long getSendRemainingDuration() {
         long completedRows = getNumCompletedRows();
+        long numberOfRows = getNumRows();
 
         // Early exit condition. Can't make an estimate if we haven't started.
-        if (completedRows == 0) { return -1L; }
+        if (completedRows == 0 || numberOfRows == 0) { return -1L; }
 
         long elapsedTime = getSendDuration();
         long timePerRow = elapsedTime / completedRows;
-        long estimate = getNumRows() * timePerRow;
+        long estimate = numberOfRows * timePerRow;
         return estimate - elapsedTime;
     }
 
@@ -845,10 +846,8 @@ public class GUIBackend implements BackendAPI, ControllerListener, SettingChange
                 return;
             }
         }
-        
-        for (UGSEventListener l : ugsEventListener) {
-            l.UGSEvent(event);
-        }
+
+        ugsEventListener.forEach(l -> l.UGSEvent(event));
     }
 
     private void sendControllerStateEvent(UGSEvent event) {
