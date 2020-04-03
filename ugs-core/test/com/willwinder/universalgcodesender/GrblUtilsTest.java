@@ -24,8 +24,6 @@ import com.willwinder.universalgcodesender.model.Position;
 import com.willwinder.universalgcodesender.model.UnitUtils;
 import org.junit.Test;
 
-import java.util.ArrayList;
-
 import static com.willwinder.universalgcodesender.model.Axis.*;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.Assert.*;
@@ -427,7 +425,6 @@ public class GrblUtilsTest {
 
         ControllerStatus controllerStatus = GrblUtils.getStatusFromStatusString(null, status, version, unit);
 
-        assertEquals("Idle", controllerStatus.getStateString());
         assertEquals(ControllerState.IDLE, controllerStatus.getState());
 
         assertEquals(new Position(1.1, 2.2, 3.3, UnitUtils.Units.MM), controllerStatus.getMachineCoord());
@@ -509,6 +506,30 @@ public class GrblUtilsTest {
 
         assertEquals(Double.valueOf(12345.6), controllerStatus.getFeedSpeed());
         assertEquals(Double.valueOf(65432.1), controllerStatus.getSpindleSpeed());
+    }
+
+    @Test
+    public void getStatusFromStringVersion1WhereFeedRateIsGivenAsTwoValuesStatusString() {
+        String status = "<Idle|WPos:4.0,5.0,6.0|WCO:7.0,8.0,9.0|Ov:1,2,3|F:12345.6,1000.0>";
+        Capabilities version = new Capabilities();
+        version.addCapability(GrblCapabilitiesConstants.V1_FORMAT);
+        UnitUtils.Units unit = UnitUtils.Units.MM;
+
+        ControllerStatus controllerStatus = GrblUtils.getStatusFromStatusString(null, status, version, unit);
+
+        assertEquals(Double.valueOf(0), controllerStatus.getFeedSpeed());
+    }
+
+    @Test
+    public void getStatusFromStringVersion1WhereFeedRateIsGivenAsThreeValuesStatusString() {
+        String status = "<Idle|WPos:4.0,5.0,6.0|WCO:7.0,8.0,9.0|Ov:1,2,3|F:12345.6,1000.0,2000.0>";
+        Capabilities version = new Capabilities();
+        version.addCapability(GrblCapabilitiesConstants.V1_FORMAT);
+        UnitUtils.Units unit = UnitUtils.Units.MM;
+
+        ControllerStatus controllerStatus = GrblUtils.getStatusFromStatusString(null, status, version, unit);
+
+        assertEquals(Double.valueOf(12345.6), controllerStatus.getFeedSpeed());
     }
 
     @Test

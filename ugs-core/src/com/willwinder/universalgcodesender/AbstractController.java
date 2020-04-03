@@ -165,7 +165,10 @@ public abstract class AbstractController implements CommunicatorListener, IContr
             // If Z is less than zero, raise it before further movement.
             double currentZPosition = getControllerStatus().getWorkCoord().getPositionIn(UnitUtils.Units.MM).get(Axis.Z);
             if (currentZPosition < safetyHeightInMm) {
-                String moveToSafetyHeightCommand = GcodeUtils.generateMoveCommand("G90 G0", safetyHeightInMm, 0, 0, 0, 1, UnitUtils.Units.MM);
+                String moveToSafetyHeightCommand = GcodeUtils.GCODE_RETURN_TO_Z_ZERO_LOCATION;
+                if (safetyHeightInMm > 0) {
+                    moveToSafetyHeightCommand = GcodeUtils.generateMoveCommand("G90 G0", 0, 0, 0, safetyHeightInMm, UnitUtils.Units.MM);
+                }
                 sendCommandImmediately(createCommand(moveToSafetyHeightCommand));
             }
             sendCommandImmediately(createCommand(GcodeUtils.GCODE_RETURN_TO_XY_ZERO_LOCATION));
@@ -234,12 +237,12 @@ public abstract class AbstractController implements CommunicatorListener, IContr
     }
 
     @Override
-    public void jogMachine(int dirX, int dirY, int dirZ, double stepSize,
-            double feedRate, UnitUtils.Units units) throws Exception {
+    public void jogMachine(double distanceX, double distanceY, double distanceZ,
+                           double feedRate, UnitUtils.Units units) throws Exception {
         logger.log(Level.INFO, "Adjusting manual location.");
 
         String commandString = GcodeUtils.generateMoveCommand("G91G1",
-                stepSize, feedRate, dirX, dirY, dirZ, units);
+                 feedRate, distanceX, distanceY, distanceZ, units);
 
         GcodeCommand command = createCommand(commandString);
         command.setTemporaryParserModalChange(true);
@@ -297,10 +300,16 @@ public abstract class AbstractController implements CommunicatorListener, IContr
     }
     
     /**
-     * Listener event for status update values;
+     * Notifies that the status update has been enabled or disabled.
+     * The rate can be retrieved from {@link #getStatusUpdatesEnabled()}
      */
-    abstract protected void statusUpdatesEnabledValueChanged(boolean enabled);
-    abstract protected void statusUpdatesRateValueChanged(int rate);
+    abstract protected void statusUpdatesEnabledValueChanged();
+
+    /**
+     * Notifies that the status update rate has changed.
+     * The rate can be retrieved from {@link #getStatusUpdateRate()}
+     */
+    abstract protected void statusUpdatesRateValueChanged();
 
     /**
      * Accessible so that it can be configured.
@@ -340,7 +349,7 @@ public abstract class AbstractController implements CommunicatorListener, IContr
     public void setStatusUpdatesEnabled(boolean enabled) {
         if (this.statusUpdatesEnabled != enabled) {
             this.statusUpdatesEnabled = enabled;
-            statusUpdatesEnabledValueChanged(enabled);
+            statusUpdatesEnabledValueChanged();
         }
     }
     
@@ -353,7 +362,7 @@ public abstract class AbstractController implements CommunicatorListener, IContr
     public void setStatusUpdateRate(int rate) {
         if (this.statusUpdateRate != rate) {
             this.statusUpdateRate = rate;
-            statusUpdatesRateValueChanged(rate);
+            statusUpdatesRateValueChanged();
         }
     }
     
