@@ -43,12 +43,15 @@ import java.awt.event.ActionEvent;
         lazy = false)
 @ActionReferences({
         @ActionReference(
+                path = "Toolbars/Machine Actions",
+                position = 982),
+        @ActionReference(
                 path = LocalizingService.SoftResetWindowPath,
                 position = 1030)
 })
 public final class SoftResetAction extends AbstractAction implements UGSEventListener {
 
-    public static final String ICON_BASE = "resources/icons/reset.png";
+    public static final String ICON_BASE = "resources/icons/reset.svg";
 
     private BackendAPI backend;
 

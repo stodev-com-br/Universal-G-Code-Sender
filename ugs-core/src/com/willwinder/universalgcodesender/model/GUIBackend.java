@@ -1,5 +1,5 @@
 /*
-    Copyright 2015-2018 Will Winder
+    Copyright 2015-2021 Will Winder
 
     This file is part of Universal Gcode Sender (UGS).
 
@@ -151,13 +151,15 @@ public class GUIBackend implements BackendAPI, ControllerListener, SettingChange
         this.messageService.removeListener(listener);
     }
 
-    //////////////////
-    // GUI API
-    //////////////////
+    /////////////
+    // GUI API //
+    /////////////
 
     @Override
     public void preprocessAndExportToFile(File f) throws Exception {
-        preprocessAndExportToFile(this.gcp, this.getGcodeFile(), f);
+        try (IGcodeWriter gcw = new GcodeFileWriter(this.processedGcodeFile)) {
+            preprocessAndExportToFile(this.gcp, this.getGcodeFile(), gcw);
+        }
     }
     
     /**
@@ -166,14 +168,14 @@ public class GUIBackend implements BackendAPI, ControllerListener, SettingChange
      * Additional rules:
      * * Comment lines are left
      */
-    protected void preprocessAndExportToFile(GcodeParser gcp, File input, File output) throws Exception {
-        logger.log(Level.INFO, "Preprocessing {0} to {1}", new Object[]{input.getCanonicalPath(), output.getCanonicalPath()});
-        GcodeParserUtils.processAndExport(gcp, input, output);
+    protected void preprocessAndExportToFile(GcodeParser gcp, File input, IGcodeWriter gcw) throws Exception {
+        logger.log(Level.INFO, "Preprocessing {0} to {1}", new Object[]{input.getCanonicalPath(), gcw.getCanonicalPath()});
+        GcodeParserUtils.processAndExport(gcp, input, gcw);
     }
 
     private void initGcodeParser() {
         // Configure gcode parser.
-        gcp.resetCommandProcessors();
+        gcp.clearCommandProcessors();
 
         try {
             List<CommandProcessor> processors = FirmwareUtils.getParserFor(firmware, settings).orElse(null);
@@ -316,7 +318,6 @@ public class GUIBackend implements BackendAPI, ControllerListener, SettingChange
         parser.addCommandProcessor(new WhitespaceProcessor());
         parser.addCommandProcessor(new M30Processor());
         parser.addCommandProcessor(new DecimalProcessor(4));
-        parser.addCommandProcessor(new CommandLengthProcessor(50));
     }
 
     @Override
@@ -348,13 +349,19 @@ public class GUIBackend implements BackendAPI, ControllerListener, SettingChange
     }
 
     @Override
-    public void adjustManualLocation(double distanceX, double distanceY, double distanceZ, double feedRate, Units units) throws Exception {
+    public void adjustManualLocation(PartialPosition distance, double feedRate) throws Exception {
+        boolean empty = !Arrays.stream(Axis.values())
+                .map(axis -> distance.hasAxis(axis) ? distance.getAxis(axis) : 0)
+                .filter(aDouble -> aDouble != 0.0)
+                .findAny()
+                .isPresent();
+
         // Don't send empty commands.
-        if ((distanceX == 0) && (distanceY == 0) && (distanceZ == 0)) {
+        if (empty) {
             return;
         }
 
-        controller.jogMachine(distanceX, distanceY, distanceZ, feedRate, units);
+        controller.jogMachine(distance, feedRate);
     }
 
     @Override
@@ -414,12 +421,24 @@ public class GUIBackend implements BackendAPI, ControllerListener, SettingChange
     @Override
     public void setGcodeFile(File file) throws Exception {
         logger.log(Level.INFO, "Setting gcode file.");
+        this.sendUGSEvent(new UGSEvent(FileState.OPENING_FILE, file.getAbsolutePath()), false);
         initGcodeParser();
         this.gcodeFile = file;
+        processGcodeFile();
+    }
+
+    @Override
+    public void reloadGcodeFile() throws Exception {
+        logger.log(Level.INFO, "Reloading gcode file.");
+        this.sendUGSEvent(new UGSEvent(FileState.OPENING_FILE, gcodeFile.getAbsolutePath()), false);
+        processGcodeFile();
+    }
+
+    private void processGcodeFile() throws Exception {
         this.processedGcodeFile = null;
 
         this.sendUGSEvent(new UGSEvent(FileState.FILE_LOADING,
-                file.getAbsolutePath()), false);
+                this.gcodeFile.getAbsolutePath()), false);
 
         initializeProcessedLines(true, this.gcodeFile, this.gcp);
 
@@ -466,13 +485,41 @@ public class GUIBackend implements BackendAPI, ControllerListener, SettingChange
             return;
         }
 
-        // re-initialize starting with the already processed file.
-        initializeProcessedLines(true, this.processedGcodeFile, parser);
+        File settingsDir = SettingsFactory.getSettingsDirectory();
+        File applyDir = new File(settingsDir, "apply_parser_files");
+        applyDir.mkdir();
 
-        this.sendUGSEvent(new UGSEvent(FileState.FILE_LOADED,
-                processedGcodeFile.getAbsolutePath()), false);
+        File target = new File(applyDir, this.processedGcodeFile.getName() + ".apply.gcode");
+        java.nio.file.Files.deleteIfExists(target.toPath());
+
+        // Using a GcodeFileWriter instead of a GcodeStreamWriter so that the user can review a standard gcode file.
+        try (IGcodeWriter gcw = new GcodeFileWriter(target)) {
+            preprocessAndExportToFile(parser, this.processedGcodeFile, gcw);
+        }
+
+        this.setGcodeFile(target);
     }
-    
+
+    @Override
+    public void applyCommandProcessor(CommandProcessor commandProcessor) throws Exception {
+        logger.log(Level.INFO, "Applying new command processor");
+        gcp.addCommandProcessor(commandProcessor);
+
+        if(gcodeFile != null) {
+            processGcodeFile();
+        }
+    }
+
+    @Override
+    public void removeCommandProcessor(CommandProcessor commandProcessor) throws Exception {
+        gcp.removeCommandProcessor(commandProcessor);
+        processGcodeFile();
+
+        if(gcodeFile != null) {
+            processGcodeFile();
+        }
+    }
+
     @Override
     public File getGcodeFile() {
         logger.log(Level.FINEST, "Getting gcode file.");
@@ -662,9 +709,9 @@ public class GUIBackend implements BackendAPI, ControllerListener, SettingChange
         this.controller.viewParserState();
     }
 
-    //////////////////
-    // Controller Listener
-    //////////////////
+    /////////////////////////
+    // Controller Listener //
+    /////////////////////////
     @Override
     public void controlStateChange(ControlState state) {
         // This comes from the boss, force the event change.
@@ -710,9 +757,9 @@ public class GUIBackend implements BackendAPI, ControllerListener, SettingChange
         this.sendControllerStateEvent(new UGSEvent(status));
     }
     
-    ////////////////////
-    // Utility functions
-    ////////////////////
+    ///////////////////////
+    // Utility functions //
+    ///////////////////////
     
     /**
      * This would be static but I want to define it in the interface.
@@ -760,12 +807,13 @@ public class GUIBackend implements BackendAPI, ControllerListener, SettingChange
 
     @Override
     public void setWorkPositionUsingExpression(final Axis axis, final String expression) throws Exception {
+        Units preferredUnits = getSettings().getPreferredUnits();
         String expr = StringUtils.trimToEmpty(expression);
-        expr = expr.replaceAll("#", String.valueOf(getWorkPosition().get(axis)));
+        expr = expr.replaceAll("#", String.valueOf(getWorkPosition().getPositionIn(preferredUnits).get(axis)));
 
-        // If the expression starts with a mathimatical operation add the original position
+        // If the expression starts with a mathematical operation add the original position
         if (StringUtils.startsWithAny(expr, "/", "*")) {
-            double value = getWorkPosition().get(axis);
+            double value = getWorkPosition().getPositionIn(preferredUnits).get(axis);
             expr = value + " " + expr;
         }
 
@@ -773,16 +821,16 @@ public class GUIBackend implements BackendAPI, ControllerListener, SettingChange
         ScriptEngineManager mgr = new ScriptEngineManager();
         ScriptEngine engine = mgr.getEngineByName("JavaScript");
         try {
-            double position = Double.valueOf(engine.eval(expr).toString());
-            setWorkPosition(PartialPosition.from(axis, position));
+            double position = Double.parseDouble(engine.eval(expr).toString());
+            setWorkPosition(PartialPosition.from(axis, position, preferredUnits));
         } catch (ScriptException e) {
             throw new Exception("Invalid expression", e);
         }
     }
 
-    /////////////////////
-    // Private functions.
-    /////////////////////
+    ////////////////////////
+    // Private functions. //
+    ////////////////////////
     
     private boolean openCommConnection(String port, int baudRate) throws Exception {
         boolean connected;
@@ -807,7 +855,7 @@ public class GUIBackend implements BackendAPI, ControllerListener, SettingChange
             logger.info("Start preprocessing");
             long start = System.currentTimeMillis();
             if (this.processedGcodeFile == null || forceReprocess) {
-                gcp.reset();
+                gcodeParser.reset();
 
                 String name = startFile.getName();
 
@@ -819,10 +867,12 @@ public class GUIBackend implements BackendAPI, ControllerListener, SettingChange
                 }
                 this.processedGcodeFile =
                         new File(this.getTempDir(), name + "_ugs_" + System.currentTimeMillis());
-                this.preprocessAndExportToFile(gcodeParser, startFile, this.processedGcodeFile);
+                try (IGcodeWriter gcw = new GcodeStreamWriter(this.processedGcodeFile)) {
+                    this.preprocessAndExportToFile(gcodeParser, startFile, gcw);
+                }
 
                 // Store gcode file stats.
-                GcodeStats gs = gcp.getCurrentStats();
+                GcodeStats gs = gcodeParser.getCurrentStats();
                 this.settings.setFileStats(new FileStats(
                     gs.getMin(), gs.getMax(), gs.getCommandCount()));
             }

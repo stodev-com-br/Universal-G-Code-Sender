@@ -1,6 +1,5 @@
 /*
-    Copyright 2015-2018 Will Winder
-
+    Copyright 2015-2021 Will Winder
 
     This file is part of Universal Gcode Sender (UGS).
 
@@ -48,7 +47,7 @@ import java.awt.event.ActionEvent;
 })
 public final class ResetCoordinatesToZeroAction extends AbstractAction implements UGSEventListener {
 
-    public static final String ICON_BASE = "resources/icons/resetzero.png";
+    public static final String ICON_BASE = "resources/icons/resetzero.svg";
 
     private BackendAPI backend;
 

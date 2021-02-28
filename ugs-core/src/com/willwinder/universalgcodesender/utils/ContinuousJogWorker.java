@@ -1,5 +1,5 @@
 /*
-    Copyright 2020 Will Winder
+    Copyright 2020-2021 Will Winder
 
     This file is part of Universal Gcode Sender (UGS).
 
@@ -20,10 +20,7 @@ package com.willwinder.universalgcodesender.utils;
 
 import com.willwinder.universalgcodesender.listeners.ControllerListener;
 import com.willwinder.universalgcodesender.listeners.ControllerStatus;
-import com.willwinder.universalgcodesender.model.Alarm;
-import com.willwinder.universalgcodesender.model.BackendAPI;
-import com.willwinder.universalgcodesender.model.Position;
-import com.willwinder.universalgcodesender.model.UGSEvent;
+import com.willwinder.universalgcodesender.model.*;
 import com.willwinder.universalgcodesender.services.JogService;
 import com.willwinder.universalgcodesender.types.GcodeCommand;
 
@@ -75,7 +72,9 @@ public class ContinuousJogWorker implements ControllerListener {
      */
     public void destroy() {
         isRunning = false;
-        future.cancel(false);
+        if (future != null) {
+            future.cancel(false);
+        }
         backendAPI.removeControllerListener(this);
     }
 
@@ -116,11 +115,12 @@ public class ContinuousJogWorker implements ControllerListener {
         try {
             isRunning = true;
             final double stepSize = calculateStepSize();
+            final UnitUtils.Units units = jogService.getUnits();
             while (isRunning) {
                 // Ensure that we only send one command at the time, waiting for it to complete
                 if (!isWaitingForCommandComplete) {
                     isWaitingForCommandComplete = true;
-                    jogService.adjustManualLocation(x * stepSize, y * stepSize, z * stepSize);
+                    jogService.adjustManualLocation(new PartialPosition(x * stepSize, y * stepSize, z * stepSize, units));
                 } else {
                     Thread.sleep(JOG_COMMAND_INTERVAL);
                 }
@@ -186,7 +186,9 @@ public class ContinuousJogWorker implements ControllerListener {
         isWaitingForCommandComplete = false;
         if (command.isError()) {
             stop();
-            future.cancel(false);
+            if (future != null) {
+                future.cancel(false);
+            }
         }
     }
 
@@ -203,5 +205,27 @@ public class ContinuousJogWorker implements ControllerListener {
     @Override
     public void statusStringListener(ControllerStatus status) {
 
+    }
+
+    public void setDirection(Axis axis, float value) {
+        switch (axis) {
+            case X:
+                x = value;
+                break;
+            case Y:
+                y = value;
+                break;
+            case Z:
+                z = value;
+                break;
+        }
+    }
+
+    public void update() {
+        if (x != 0 || y != 0 || z != 0) {
+            start();
+        } else {
+            stop();
+        }
     }
 }

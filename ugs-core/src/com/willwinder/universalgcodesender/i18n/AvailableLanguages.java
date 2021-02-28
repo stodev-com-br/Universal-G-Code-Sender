@@ -31,7 +31,8 @@ public class AvailableLanguages {
     static {
         availableLanguages.add(new Language("af", "ZA", "Afrikaans"));
         availableLanguages.add(new Language("ca", "AD", "Catalan"));
-        availableLanguages.add(new Language("zh", "CHS", "Chinese (Simplified)"));
+        availableLanguages.add(new Language("zh", "CHS", "Chinese"));
+        availableLanguages.add(new Language("zh", "Hans", "Chinese (Simplified)"));
         availableLanguages.add(new Language("cs", "CZ", "Czech"));
         availableLanguages.add(new Language("nl", "NL", "Dutch"));
         availableLanguages.add(new Language("en", "US", "English"));
@@ -43,6 +44,7 @@ public class AvailableLanguages {
         availableLanguages.add(new Language("lt", "LT", "Lithuanian"));
         availableLanguages.add(new Language("nb", "NO", "Norwegian Bokmål"));
         availableLanguages.add(new Language("nn", "NO", "Norwegian Nynorsk"));
+        availableLanguages.add(new Language("fa", "IR", "Persian (Farsi)"));
         availableLanguages.add(new Language("pl", "PL", "Polish"));
         availableLanguages.add(new Language("pt", "BR", "Portuguese (Brazilian)"));
         availableLanguages.add(new Language("ru", "RU", "Russian"));

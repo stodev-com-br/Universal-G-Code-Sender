@@ -1,5 +1,5 @@
 /*
-    Copyright 2014-2019 Will Winder
+    Copyright 2014-2021 Will Winder
 
     This file is part of Universal Gcode Sender (UGS).
 
@@ -25,6 +25,7 @@ import com.willwinder.universalgcodesender.model.UnitUtils.Units;
 import com.willwinder.universalgcodesender.types.Macro;
 import com.willwinder.universalgcodesender.types.WindowSettings;
 import org.apache.commons.lang3.StringUtils;
+import org.apache.commons.lang3.SystemUtils;
 
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -55,7 +56,9 @@ public class Settings {
     private boolean manualModeEnabled = false;
     private double manualModeStepSize = 1;
     private boolean useZStepSize = true;
+    private boolean showABCStepSize = true;
     private double zJogStepSize = 1;
+    private double abcJogStepSize = 1;
     private double jogFeedRate = 10;
     private boolean scrollWindowEnabled = true;
     private boolean verboseOutputEnabled = false;
@@ -246,12 +249,30 @@ public class Settings {
         changed();
     }
 
-    public double getzJogStepSize() {
+    public boolean showABCStepSize() {
+        return this.showABCStepSize;
+    }
+
+    public void setShowABCStepSize(boolean showABCStepSize) {
+        this.showABCStepSize = showABCStepSize;
+        changed();
+    }
+
+    public double getZJogStepSize() {
         return zJogStepSize;
     }
 
-    public void setzJogStepSize(double zJogStepSize) {
+    public void setZJogStepSize(double zJogStepSize) {
         this.zJogStepSize = zJogStepSize;
+        changed();
+    }
+
+    public double getABCJogStepSize() {
+        return abcJogStepSize;
+    }
+
+    public void setABCJogStepSize(double abcJogStepSize) {
+        this.abcJogStepSize = abcJogStepSize;
         changed();
     }
 
@@ -348,7 +369,7 @@ public class Settings {
 
             // Change
             setManualModeStepSize(manualModeStepSize * scaleUnits);
-            setzJogStepSize(zJogStepSize * scaleUnits);
+            setZJogStepSize(zJogStepSize * scaleUnits);
             setJogFeedRate(Math.round(jogFeedRate * scaleUnits));
         }
     }
@@ -430,15 +451,23 @@ public class Settings {
     }
 
     public ConnectionDriver getConnectionDriver() {
-        ConnectionDriver connectionDriver = ConnectionDriver.JSERIALCOMM;
         if (StringUtils.isNotEmpty(this.connectionDriver)) {
             try {
-                connectionDriver = ConnectionDriver.valueOf(this.connectionDriver);
+                return ConnectionDriver.valueOf(this.connectionDriver);
             } catch (IllegalArgumentException | NullPointerException ignored) {
                 // Never mind, we'll use the default
             }
         }
-        return connectionDriver;
+
+        return getDefaultDriver();
+    }
+
+    private ConnectionDriver getDefaultDriver() {
+        ConnectionDriver result = ConnectionDriver.JSERIALCOMM;
+        if (SystemUtils.IS_OS_LINUX) {
+            result = ConnectionDriver.JSSC;
+        }
+        return result;
     }
 
     public void setConnectionDriver(ConnectionDriver connectionDriver) {
